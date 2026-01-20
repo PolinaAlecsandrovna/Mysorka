@@ -1,4 +1,3 @@
-# Mysorka
 package com.example.gonkiai;
 
 import android.os.Bundle;
@@ -8,23 +7,21 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
 import android.graphics.Color;
-
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
     private Button btnStart;
-    private Button btnDrive;
     private TextView tvResult;
-    private View car_player1;
-    private View car_player2;
+    private View carPlayer1;
+    private View carPlayer2;
 
     private boolean gameStarted = false;
     private boolean gameFinished = false;
 
-    // AI Movement Handler
-    private Handler aiHandler = new Handler();
-    private Runnable aiMoveRunnable = new Runnable() {
+    // AI Movement Handler — объявлены как final, так как не изменяются после инициализации
+    private final Handler aiHandler = new Handler();
+    private final Runnable aiMoveRunnable = new Runnable() {
         @Override
         public void run() {
             if (gameStarted && !gameFinished) {
@@ -40,10 +37,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         btnStart = findViewById(R.id.btnStart);
-        btnDrive = findViewById(R.id.btnDrive);
         tvResult = findViewById(R.id.tvResult);
-        car_player1 = findViewById(R.id.car_player1);
-        car_player2 = findViewById(R.id.car_player2);
+        carPlayer1 = findViewById(R.id.car_player1);
+        carPlayer2 = findViewById(R.id.car_player2);
     }
 
     public void startGame(View view) {
@@ -65,39 +61,38 @@ public class MainActivity extends AppCompatActivity {
     public void drivePlayer(View view) {
         if (!gameStarted || gameFinished) return;
 
-        ViewGroup.MarginLayoutParams player1Params = (ViewGroup.MarginLayoutParams) car_player1.getLayoutParams();
+        ViewGroup.MarginLayoutParams player1Params = (ViewGroup.MarginLayoutParams) carPlayer1.getLayoutParams();
         player1Params.leftMargin += 50;
-        car_player1.setLayoutParams(player1Params);
+        carPlayer1.setLayoutParams(player1Params);
 
         checkWin();
     }
 
     private void moveAI() {
-        ViewGroup.MarginLayoutParams aiParams = (ViewGroup.MarginLayoutParams) car_player2.getLayoutParams();
+        ViewGroup.MarginLayoutParams aiParams = (ViewGroup.MarginLayoutParams) carPlayer2.getLayoutParams();
         aiParams.leftMargin += 10;
-        car_player2.setLayoutParams(aiParams);
+        carPlayer2.setLayoutParams(aiParams);
         checkWin();
     }
 
     private void checkWin() {
-        int player1Position = ((ViewGroup.MarginLayoutParams) car_player1.getLayoutParams()).leftMargin;
-        int player2Position = ((ViewGroup.MarginLayoutParams) car_player2.getLayoutParams()).leftMargin;
+        int player1Position = ((ViewGroup.MarginLayoutParams) carPlayer1.getLayoutParams()).leftMargin;
+        int player2Position = ((ViewGroup.MarginLayoutParams) carPlayer2.getLayoutParams()).leftMargin;
 
         if (player1Position >= 800) {
-            gameFinished = true;
-            gameStarted = false;
-            aiHandler.removeCallbacks(aiMoveRunnable);
-            tvResult.setText("Вы победили!");
-            btnStart.setText("Заново");
-            btnStart.setBackgroundColor(Color.GREEN);
+            endGame("Вы победили!", Color.GREEN);
         } else if (player2Position >= 800) {
-            gameFinished = true;
-            gameStarted = false;
-            aiHandler.removeCallbacks(aiMoveRunnable);
-            tvResult.setText("AI победил!");
-            btnStart.setText("Заново");
-            btnStart.setBackgroundColor(Color.RED);
+            endGame("AI победил!", Color.RED);
         }
+    }
+
+    private void endGame(String resultText, int buttonColor) {
+        gameStarted = false;
+        gameFinished = true;
+        aiHandler.removeCallbacks(aiMoveRunnable);
+        tvResult.setText(resultText);
+        btnStart.setText("Заново");
+        btnStart.setBackgroundColor(buttonColor);
     }
 
     private void resetGame() {
@@ -107,16 +102,14 @@ public class MainActivity extends AppCompatActivity {
         btnStart.setBackgroundColor(Color.RED);
         tvResult.setText("");
 
-        ViewGroup.MarginLayoutParams player1Params = (ViewGroup.MarginLayoutParams) car_player1.getLayoutParams();
-        player1Params.leftMargin = 0;
-        car_player1.setLayoutParams(player1Params);
+        // Сбрасываем позиции машин
+        resetCarPosition(carPlayer1);
+        resetCarPosition(carPlayer2);
+    }
 
-        ViewGroup.MarginLayoutParams player2Params = (ViewGroup.MarginLayoutParams) car_player2.getLayoutParams();
-        player2Params.leftMargin = 0;
-        car_player2.setLayoutParams(player2Params);
+    private void resetCarPosition(View car) {
+        ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) car.getLayoutParams();
+        params.leftMargin = 0;
+        car.setLayoutParams(params);
     }
 }
-Field can be converted to a local variable
-Private field 'btnDrive' is assigned but never accessed
-Field 'aiHandler' may be 'final'
-Field 'aiMoveRunnable' may be 'final'
