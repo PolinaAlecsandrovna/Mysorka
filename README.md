@@ -1,13 +1,6 @@
 package com.example.gonkiai;
 
-import android.os.Bundle;
-import android.os.Handler;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.TextView;
-import android.graphics.Color;
-import androidx.appcompat.app.AppCompatActivity;
+import android.os.Bundle; import android.os.Handler; import android.view.View; import android.view.ViewGroup; import android.widget.Button; import android.widget.TextView; import android.graphics.Color; import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -19,14 +12,13 @@ public class MainActivity extends AppCompatActivity {
     private boolean gameStarted = false;
     private boolean gameFinished = false;
 
-    // AI Movement Handler — объявлены как final, так как не изменяются после инициализации
     private final Handler aiHandler = new Handler();
     private final Runnable aiMoveRunnable = new Runnable() {
         @Override
         public void run() {
             if (gameStarted && !gameFinished) {
                 moveAI();
-                aiHandler.postDelayed(this, 300);
+                aiHandler.postDelayed(this, 200);
             }
         }
     };
@@ -70,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void moveAI() {
         ViewGroup.MarginLayoutParams aiParams = (ViewGroup.MarginLayoutParams) carPlayer2.getLayoutParams();
-        aiParams.leftMargin += 10;
+        aiParams.leftMargin += 50;
         carPlayer2.setLayoutParams(aiParams);
         checkWin();
     }
@@ -79,9 +71,9 @@ public class MainActivity extends AppCompatActivity {
         int player1Position = ((ViewGroup.MarginLayoutParams) carPlayer1.getLayoutParams()).leftMargin;
         int player2Position = ((ViewGroup.MarginLayoutParams) carPlayer2.getLayoutParams()).leftMargin;
 
-        if (player1Position >= 800) {
+        if (player1Position >= 1700) {
             endGame("Вы победили!", Color.GREEN);
-        } else if (player2Position >= 800) {
+        } else if (player2Position >= 1700) {
             endGame("AI победил!", Color.RED);
         }
     }
@@ -102,13 +94,16 @@ public class MainActivity extends AppCompatActivity {
         btnStart.setBackgroundColor(Color.RED);
         tvResult.setText("");
 
-        // Сбрасываем позиции машин
         resetCarPosition(carPlayer1);
         resetCarPosition(carPlayer2);
     }
 
     private void resetCarPosition(View car) {
         ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) car.getLayoutParams();
+        params.leftMargin = 0;
+        car.setLayoutParams(params);
+    }
+}
         params.leftMargin = 0;
         car.setLayoutParams(params);
     }
