@@ -6,15 +6,6 @@ namespace SF2022UserNN.Lib
 {
     public class Calculations
     {
-        /// <summary>
-        /// Returns available time slots of consultationTime minutes.
-        /// </summary>
-        /// <param name="startTimes">Array of appointment start times</param>
-        /// <param name="durations">Array of appointment durations in minutes</param>
-        /// <param name="beginWorkingTime">Start of working day</param>
-        /// <param name="endWorkingTime">End of working day</param>
-        /// <param name="consultationTime">Required consultation duration in minutes</param>
-        /// <returns>Array of strings in format "HH:mm-HH:mm"</returns>
         public string[] AvailablePeriods(
             TimeSpan[] startTimes,
             int[] durations,
@@ -22,85 +13,100 @@ namespace SF2022UserNN.Lib
             TimeSpan endWorkingTime,
             int consultationTime)
         {
-            // Validate input
+            // ВАЛИДАЦИЯ
             if (consultationTime <= 0)
-                return Array.Empty<string>();
+                return new string[0];
             
-            if (startTimes == null || durations == null || 
-                startTimes.Length != durations.Length)
-                return Array.Empty<string>();
+            if (startTimes == null || durations == null)
+                return new string[0];
             
-            // Convert working day to minutes
+            if (startTimes.Length != durations.Length)
+                return new string[0];
+            
+            // ПРОВЕРКА: если нет консультаций, возвращаем весь день, разбитый на слоты
+            if (startTimes.Length == 0)
+            {
+                var result = new List<string>();
+                int begin = (int)beginWorkingTime.TotalMinutes;
+                int end = (int)endWorkingTime.TotalMinutes;
+                
+                for (int start = begin; start + consultationTime <= end; start += consultationTime)
+                {
+                    int endTime = start + consultationTime;
+                    result.Add($"{start / 60:D2}:{start % 60:D2}-{endTime / 60:D2}:{endTime % 60:D2}");
+                }
+                return result.ToArray();
+            }
+            
+            // КОНВЕРТАЦИЯ В МИНУТЫ
             int beginMinutes = (int)beginWorkingTime.TotalMinutes;
             int endMinutes = (int)endWorkingTime.TotalMinutes;
             
-            // Convert appointments to (start, end) in minutes
-            var appointments = new List<(int Start, int End)>();
+            // СОЗДАЕМ СПИСОК ЗАНЯТЫХ ИНТЕРВАЛОВ
+            var busySlots = new List<(int start, int end)>();
+            
             for (int i = 0; i < startTimes.Length; i++)
             {
-                int startMinutes = (int)startTimes[i].TotalMinutes;
-                int appointmentEndMinutes = startMinutes + durations[i];
+                int start = (int)startTimes[i].TotalMinutes;
+                int end = start + durations[i];
                 
-                // Only add appointments that are within working hours
-                if (appointmentEndMinutes > beginMinutes && startMinutes < endMinutes)
+                // Обрезаем по рабочему дню
+                if (end > beginMinutes && start < endMinutes)
                 {
-                    appointments.Add((Math.Max(startMinutes, beginMinutes), 
-                                     Math.Min(appointmentEndMinutes, endMinutes)));
+                    busySlots.Add((Math.Max(start, beginMinutes), Math.Min(end, endMinutes)));
                 }
             }
             
-            // Sort appointments by start time
-            appointments = appointments.OrderBy(a => a.Start).ToList();
+            // СОРТИРУЕМ
+            busySlots = busySlots.OrderBy(x => x.start).ToList();
             
-            // Merge ONLY overlapping appointments (not adjacent)
-            var merged = new List<(int Start, int End)>();
-            foreach (var appointment in appointments)
+            // ОБЪЕДИНЯЕМ ПЕРЕСЕКАЮЩИЕСЯ ИНТЕРВАЛЫ
+            var merged = new List<(int start, int end)>();
+            foreach (var slot in busySlots)
             {
-                if (merged.Count == 0 || appointment.Start > merged[merged.Count - 1].End)
+                if (merged.Count == 0 || slot.start > merged[merged.Count - 1].end)
                 {
-                    merged.Add(appointment);
+                    merged.Add(slot);
                 }
-                else if (appointment.Start <= merged[merged.Count - 1].End)
+                else
                 {
                     var last = merged[merged.Count - 1];
-                    merged[merged.Count - 1] = (last.Start, Math.Max(last.End, appointment.End));
+                    merged[merged.Count - 1] = (last.start, Math.Max(last.end, slot.end));
                 }
             }
             
-            // Find free slots
-            var freeSlots = new List<(int Start, int End)>();
-            int currentTime = beginMinutes;
+            // НАХОДИМ СВОБОДНЫЕ ИНТЕРВАЛЫ
+            var freeSlots = new List<(int start, int end)>();
+            int current = beginMinutes;
             
-            // Add all free intervals
-            foreach (var appointment in merged)
+            foreach (var busy in merged)
             {
-                if (currentTime < appointment.Start)
+                if (current < busy.start)
                 {
-                    freeSlots.Add((currentTime, appointment.Start));
+                    freeSlots.Add((current, busy.start));
                 }
-                currentTime = Math.Max(currentTime, appointment.End);
+                current = Math.Max(current, busy.end);
             }
             
-            // Add remaining time after last appointment
-            if (currentTime < endMinutes)
+            if (current < endMinutes)
             {
-                freeSlots.Add((currentTime, endMinutes));
+                freeSlots.Add((current, endMinutes));
             }
             
-            // Split free slots into consultationTime intervals
+            // ФОРМИРУЕМ РЕЗУЛЬТАТ
             var result = new List<string>();
-            foreach (var slot in freeSlots)
+            foreach (var free in freeSlots)
             {
-                int current = slot.Start;
-                while (current + consultationTime <= slot.End)
+                for (int slotStart = free.start; slotStart + consultationTime <= free.end; slotStart += consultationTime)
                 {
-                    int startHour = current / 60;
-                    int startMin = current % 60;
-                    int endHour = (current + consultationTime) / 60;
-                    int endMin = (current + consultationTime) % 60;
+                    int slotEnd = slotStart + consultationTime;
                     
-                    result.Add($"{startHour:D2}:{startMin:D2}-{endHour:D2}:{endMin:D2}");
-                    current += consultationTime;
+                    // Убеждаемся, что слот не выходит за пределы рабочего дня
+                    if (slotEnd <= endMinutes)
+                    {
+                        string formatted = $"{slotStart / 60:D2}:{slotStart % 60:D2}-{slotEnd / 60:D2}:{slotEnd % 60:D2}";
+                        result.Add(formatted);
+                    }
                 }
             }
             
@@ -122,47 +128,47 @@ namespace SF2022UserNN.Lib
 
 
 
+
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using SF2022UserNN.Lib;
-using System.Linq;
 
 namespace SF2022UserNN.Lib.Tests
 {
     [TestClass]
     public class CalculationsTests
     {
-        private Calculations _calculations;
+        private Calculations _calc;
         
         [TestInitialize]
         public void Setup()
         {
-            _calculations = new Calculations();
+            _calc = new Calculations();
         }
         
+        // ТЕСТ 1: Базовый пример из задания
         [TestMethod]
-        public void AvailablePeriods_BasicCaseFromExample_ReturnsCorrectSlots()
+        public void Test1_BasicExample()
         {
             // Arrange
-            TimeSpan[] startTimes = new[]
+            var startTimes = new TimeSpan[]
             {
-                TimeSpan.FromHours(10),
-                TimeSpan.FromHours(11),
-                TimeSpan.FromHours(15),
-                TimeSpan.FromHours(15).Add(TimeSpan.FromMinutes(30)),
-                TimeSpan.FromHours(16).Add(TimeSpan.FromMinutes(50))
+                TimeSpan.FromHours(10),  // 10:00
+                TimeSpan.FromHours(11),  // 11:00
+                TimeSpan.FromHours(15),  // 15:00
+                TimeSpan.FromHours(15).Add(TimeSpan.FromMinutes(30)), // 15:30
+                TimeSpan.FromHours(16).Add(TimeSpan.FromMinutes(50))  // 16:50
             };
-            int[] durations = { 60, 30, 10, 10, 40 };
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(8);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(18);
-            int consultationTime = 30;
+            var durations = new int[] { 60, 30, 10, 10, 40 };
+            var begin = TimeSpan.FromHours(8);
+            var end = TimeSpan.FromHours(18);
+            int consultation = 30;
             
             // Act
-            string[] result = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, consultationTime);
+            var result = _calc.AvailablePeriods(startTimes, durations, begin, end, consultation);
             
             // Assert
-            string[] expected = new[]
+            var expected = new string[]
             {
                 "08:00-08:30", "08:30-09:00", "09:00-09:30", "09:30-10:00",
                 "11:30-12:00", "12:00-12:30", "12:30-13:00", "13:00-13:30",
@@ -172,105 +178,91 @@ namespace SF2022UserNN.Lib.Tests
             CollectionAssert.AreEqual(expected, result);
         }
         
+        // ТЕСТ 2: Недостаточно времени перед первой консультацией
         [TestMethod]
-        public void AvailablePeriods_InsufficientTimeBeforeFirstAppointment_ReturnsEmpty()
+        public void Test2_InsufficientTimeBeforeFirst()
         {
-            // Arrange - только 30 минут до первой консультации, нужно 45
-            TimeSpan[] startTimes = new[] { TimeSpan.FromHours(9).Add(TimeSpan.FromMinutes(30)) };
-            int[] durations = new[] { 30 };
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(18);
-            int consultationTime = 45;
+            var startTimes = new TimeSpan[] { TimeSpan.FromHours(9).Add(TimeSpan.FromMinutes(30)) };
+            var durations = new int[] { 30 };
+            var begin = TimeSpan.FromHours(9);
+            var end = TimeSpan.FromHours(18);
+            int consultation = 45;
             
-            // Act
-            string[] result = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, consultationTime);
+            var result = _calc.AvailablePeriods(startTimes, durations, begin, end, consultation);
             
-            // Assert
+            // Должно быть пусто, так как до 9:30 всего 30 минут, а нужно 45
             Assert.AreEqual(0, result.Length);
         }
         
+        // ТЕСТ 3: Недостаточно времени после последней консультации
         [TestMethod]
-        public void AvailablePeriods_InsufficientTimeAfterLastAppointment_ReturnsEmpty()
+        public void Test3_InsufficientTimeAfterLast()
         {
-            // Arrange - после последней консультации 20 минут, нужно 30
-            TimeSpan[] startTimes = new[] { TimeSpan.FromHours(16).Add(TimeSpan.FromMinutes(40)) };
-            int[] durations = new[] { 30 };
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(17).Add(TimeSpan.FromMinutes(30));
-            int consultationTime = 30;
+            var startTimes = new TimeSpan[] { TimeSpan.FromHours(16).Add(TimeSpan.FromMinutes(40)) };
+            var durations = new int[] { 30 };
+            var begin = TimeSpan.FromHours(9);
+            var end = TimeSpan.FromHours(17).Add(TimeSpan.FromMinutes(30));
+            int consultation = 30;
             
-            // Act
-            string[] result = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, consultationTime);
+            var result = _calc.AvailablePeriods(startTimes, durations, begin, end, consultation);
             
-            // Assert - после 17:10 нет времени для 30-минутной консультации
-            // Последняя консультация заканчивается в 17:10, рабочий день до 17:30
-            // Остается 20 минут, недостаточно
-            Assert.IsFalse(result.Contains("17:10-17:40"));
+            // Консультация с 16:40 до 17:10, до конца дня (17:30) остается 20 минут - недостаточно
+            Assert.AreEqual(0, result.Length);
         }
         
+        // ТЕСТ 4: Недостаточно времени между консультациями
         [TestMethod]
-        public void AvailablePeriods_InsufficientTimeBetweenAppointments_NoSlotsInGap()
+        public void Test4_InsufficientTimeBetween()
         {
-            // Arrange - промежуток между консультациями 20 минут, нужно 30
-            TimeSpan[] startTimes = new[]
+            var startTimes = new TimeSpan[]
             {
                 TimeSpan.FromHours(10),
                 TimeSpan.FromHours(10).Add(TimeSpan.FromMinutes(50))
             };
-            int[] durations = new[] { 30, 30 };
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(18);
-            int consultationTime = 30;
+            var durations = new int[] { 30, 30 };
+            var begin = TimeSpan.FromHours(9);
+            var end = TimeSpan.FromHours(18);
+            int consultation = 30;
             
-            // Act
-            string[] result = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, consultationTime);
+            var result = _calc.AvailablePeriods(startTimes, durations, begin, end, consultation);
             
-            // Assert - промежуток 10:30-10:50 = 20 минут, недостаточно
+            // Проверяем, что нет слота 10:30-11:00 (промежуток всего 20 минут)
             Assert.IsFalse(result.Contains("10:30-11:00"));
         }
         
+        // ТЕСТ 5: Разная длительность консультаций
         [TestMethod]
-        public void AvailablePeriods_DifferentConsultationDurations_WorksCorrectly()
+        public void Test5_DifferentConsultationTimes()
         {
-            // Arrange
-            TimeSpan[] startTimes = new[] { TimeSpan.FromHours(12) };
-            int[] durations = new[] { 60 };
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(18);
+            var startTimes = new TimeSpan[] { TimeSpan.FromHours(12) };
+            var durations = new int[] { 60 };
+            var begin = TimeSpan.FromHours(9);
+            var end = TimeSpan.FromHours(18);
             
-            // Act - консультация 15 минут
-            string[] result15 = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, 15);
+            // 15-минутные слоты
+            var result15 = _calc.AvailablePeriods(startTimes, durations, begin, end, 15);
+            // 60-минутные слоты
+            var result60 = _calc.AvailablePeriods(startTimes, durations, begin, end, 60);
             
-            // Act - консультация 60 минут
-            string[] result60 = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, 60);
-            
-            // Assert
+            // 15-минутных слотов должно быть много
             Assert.IsTrue(result15.Length > 0);
+            
+            // 60-минутные слоты должны включать 09:00-10:00
             Assert.IsTrue(result60.Contains("09:00-10:00"));
-            Assert.IsFalse(result60.Contains("11:00-12:00")); // Пересекается с занятым временем
+            
+            // 11:00-12:00 пересекается с занятым временем (12:00-13:00 занято)
+            Assert.IsFalse(result60.Contains("11:00-12:00"));
         }
         
+        // ТЕСТ 6: Пустое расписание
         [TestMethod]
-        public void AvailablePeriods_EmptySchedule_ReturnsFullDaySlots()
+        public void Test6_EmptySchedule()
         {
-            // Arrange
-            TimeSpan[] startTimes = Array.Empty<TimeSpan>();
-            int[] durations = Array.Empty<int>();
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(17);
-            int consultationTime = 60;
+            var result = _calc.AvailablePeriods(
+                new TimeSpan[0], new int[0],
+                TimeSpan.FromHours(9), TimeSpan.FromHours(17), 60);
             
-            // Act
-            string[] result = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, consultationTime);
-            
-            // Assert
-            string[] expected = new[]
+            var expected = new string[]
             {
                 "09:00-10:00", "10:00-11:00", "11:00-12:00",
                 "12:00-13:00", "13:00-14:00", "14:00-15:00",
@@ -280,75 +272,64 @@ namespace SF2022UserNN.Lib.Tests
             CollectionAssert.AreEqual(expected, result);
         }
         
+        // ТЕСТ 7: Пересекающиеся консультации
         [TestMethod]
-        public void AvailablePeriods_OverlappingAppointments_HandledAsSingleBlock()
+        public void Test7_OverlappingAppointments()
         {
-            // Arrange - консультации с 10:00 до 12:30
-            TimeSpan[] startTimes = new[]
+            var startTimes = new TimeSpan[]
             {
                 TimeSpan.FromHours(10),
                 TimeSpan.FromHours(10).Add(TimeSpan.FromMinutes(30)),
                 TimeSpan.FromHours(11)
             };
-            int[] durations = new[] { 60, 30, 60 };
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(17);
-            int consultationTime = 30;
+            var durations = new int[] { 60, 30, 60 };
+            var begin = TimeSpan.FromHours(9);
+            var end = TimeSpan.FromHours(17);
+            int consultation = 30;
             
-            // Act
-            string[] result = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, consultationTime);
+            var result = _calc.AvailablePeriods(startTimes, durations, begin, end, consultation);
             
-            // Assert
+            // Проверяем наличие слотов
             Assert.IsTrue(result.Contains("09:00-09:30"));
             Assert.IsTrue(result.Contains("09:30-10:00"));
             Assert.IsFalse(result.Contains("10:00-10:30")); // Занято
             Assert.IsFalse(result.Contains("11:30-12:00")); // Занято
-            Assert.IsTrue(result.Contains("12:30-13:00")); // Свободно
+            Assert.IsTrue(result.Contains("12:30-13:00"));  // Свободно
         }
         
+        // ТЕСТ 8: Время консультации 0 или отрицательное
         [TestMethod]
-        public void AvailablePeriods_ConsultationTimeZeroOrNegative_ReturnsEmpty()
+        public void Test8_ZeroOrNegativeConsultation()
         {
-            // Arrange
-            TimeSpan[] startTimes = new[] { TimeSpan.FromHours(10) };
-            int[] durations = new[] { 30 };
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(17);
+            var startTimes = new TimeSpan[] { TimeSpan.FromHours(10) };
+            var durations = new int[] { 30 };
+            var begin = TimeSpan.FromHours(9);
+            var end = TimeSpan.FromHours(17);
             
-            // Act - консультация 0 минут
-            string[] resultZero = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, 0);
+            var resultZero = _calc.AvailablePeriods(startTimes, durations, begin, end, 0);
+            var resultNegative = _calc.AvailablePeriods(startTimes, durations, begin, end, -15);
             
-            // Act - консультация отрицательная
-            string[] resultNegative = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, -15);
-            
-            // Assert
             Assert.AreEqual(0, resultZero.Length);
             Assert.AreEqual(0, resultNegative.Length);
         }
         
+        // ТЕСТ 9: Точное соответствие интервалов
         [TestMethod]
-        public void AvailablePeriods_ExactFitIntervals_ReturnsCorrectSlots()
+        public void Test9_ExactFitIntervals()
         {
-            // Arrange
-            TimeSpan[] startTimes = new[]
+            var startTimes = new TimeSpan[]
             {
                 TimeSpan.FromHours(10),
                 TimeSpan.FromHours(11)
             };
-            int[] durations = new[] { 30, 30 };
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(12);
-            int consultationTime = 30;
+            var durations = new int[] { 30, 30 };
+            var begin = TimeSpan.FromHours(9);
+            var end = TimeSpan.FromHours(12);
+            int consultation = 30;
             
-            // Act
-            string[] result = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, consultationTime);
+            var result = _calc.AvailablePeriods(startTimes, durations, begin, end, consultation);
             
-            // Assert
-            string[] expected = new[]
+            var expected = new string[]
             {
                 "09:00-09:30", "09:30-10:00",
                 "10:30-11:00", "11:30-12:00"
@@ -357,51 +338,41 @@ namespace SF2022UserNN.Lib.Tests
             CollectionAssert.AreEqual(expected, result);
         }
         
+        // ТЕСТ 10: Консультация длиннее рабочего дня
         [TestMethod]
-        public void AvailablePeriods_ConsultationLongerThanWorkingDay_ReturnsEmpty()
+        public void Test10_ConsultationLongerThanWorkday()
         {
-            // Arrange
-            TimeSpan[] startTimes = Array.Empty<TimeSpan>();
-            int[] durations = Array.Empty<int>();
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(10); // Рабочий день 1 час
-            int consultationTime = 90; // Нужно 1.5 часа
+            var result = _calc.AvailablePeriods(
+                new TimeSpan[0], new int[0],
+                TimeSpan.FromHours(9), TimeSpan.FromHours(10), 90);
             
-            // Act
-            string[] result = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, consultationTime);
-            
-            // Assert
             Assert.AreEqual(0, result.Length);
         }
         
+        // ТЕСТ 11: Дополнительный тест - консультации вплотную (без промежутков)
         [TestMethod]
-        public void AvailablePeriods_AppointmentsAtBoundaries_HandlesCorrectly()
+        public void Test11_BackToBackAppointments()
         {
-            // Arrange - консультации в начале и в конце дня
-            TimeSpan[] startTimes = new[]
+            var startTimes = new TimeSpan[]
             {
-                TimeSpan.FromHours(9),
-                TimeSpan.FromHours(17)
+                TimeSpan.FromHours(10),
+                TimeSpan.FromHours(11)
             };
-            int[] durations = new[] { 30, 30 };
-            TimeSpan beginWorkingTime = TimeSpan.FromHours(9);
-            TimeSpan endWorkingTime = TimeSpan.FromHours(17).Add(TimeSpan.FromMinutes(30));
-            int consultationTime = 30;
+            var durations = new int[] { 60, 60 }; // 10:00-11:00 и 11:00-12:00
+            var begin = TimeSpan.FromHours(9);
+            var end = TimeSpan.FromHours(13);
+            int consultation = 30;
             
-            // Act
-            string[] result = _calculations.AvailablePeriods(
-                startTimes, durations, beginWorkingTime, endWorkingTime, consultationTime);
+            var result = _calc.AvailablePeriods(startTimes, durations, begin, end, consultation);
             
-            // Assert
-            Assert.IsFalse(result.Contains("09:00-09:30")); // Занято
-            Assert.IsTrue(result.Contains("09:30-10:00"));
-            Assert.IsTrue(result.Contains("16:30-17:00"));
-            Assert.IsFalse(result.Contains("17:00-17:30")); // Занято
-            Assert.IsTrue(result.Contains("17:30-18:00"));
+            // Свободно: 09:00-10:00 (два 30-минутных слота) и 12:00-13:00 (два слота)
+            var expected = new string[]
+            {
+                "09:00-09:30", "09:30-10:00",
+                "12:00-12:30", "12:30-13:00"
+            };
+            
+            CollectionAssert.AreEqual(expected, result);
         }
     }
 }
-
-
-
