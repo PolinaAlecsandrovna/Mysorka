@@ -32,15 +32,15 @@ namespace SF2022UserNN.Lib
             
             // Convert working day to minutes
             int beginMinutes = (int)beginWorkingTime.TotalMinutes;
-            int endMinutes = (int)endWorkingTime.TotalMinutes;
+            int endMinutes = (int)endWorkingTime.TotalMinutes;  // ← endMinutes здесь
             
             // Convert appointments to (start, end) in minutes
             var appointments = new List<(int Start, int End)>();
             for (int i = 0; i < startTimes.Length; i++)
             {
                 int startMinutes = (int)startTimes[i].TotalMinutes;
-                int endMinutes = startMinutes + durations[i];
-                appointments.Add((startMinutes, endMinutes));
+                int appointmentEndMinutes = startMinutes + durations[i];  // ← переименовано
+                appointments.Add((startMinutes, appointmentEndMinutes));
             }
             
             // Sort appointments by start time
@@ -50,14 +50,14 @@ namespace SF2022UserNN.Lib
             var merged = new List<(int Start, int End)>();
             foreach (var appointment in appointments)
             {
-                if (merged.Count == 0 || appointment.Start > merged[^1].End)
+                if (merged.Count == 0 || appointment.Start > merged[merged.Count - 1].End)
                 {
                     merged.Add(appointment);
                 }
                 else
                 {
-                    var last = merged[^1];
-                    merged[^1] = (last.Start, Math.Max(last.End, appointment.End));
+                    var last = merged[merged.Count - 1];
+                    merged[merged.Count - 1] = (last.Start, Math.Max(last.End, appointment.End));
                 }
             }
             
@@ -88,7 +88,7 @@ namespace SF2022UserNN.Lib
             // Check after last appointment
             if (merged.Count > 0)
             {
-                currentTime = merged[^1].End;
+                currentTime = merged[merged.Count - 1].End;
             }
             if (endMinutes - currentTime >= consultationTime)
             {
