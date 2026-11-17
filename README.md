@@ -70,3 +70,52 @@
 - Иметь интерфейс на русский языке
 
 Начни свой ответ сразу с HTML кода без дополнительных пояснений.
+
+using System;
+
+namespace BankingSchoolTasks
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            Console.WriteLine("Выберите задачу для запуска (1, 2, 3, 4 или 0 для выхода):");
+            
+            while (true)
+            {
+                Console.Write("Введите номер задачи: ");
+                string choice = Console.ReadLine();
+
+                switch (choice)
+                {
+                    case "1":
+                        Console.WriteLine("--- Задача 1: Цепочка чисел ---");
+                        // Вызов метода первой задачи
+                        // Task1.Solve(); 
+                        break;
+                    case "2":
+                        Console.WriteLine("--- Задача 2: Обратная польская запись ---");
+                        // Task2.Solve();
+                        break;
+                    case "3":
+                        Console.WriteLine("--- Задача 3: Анаграммы ---");
+                        // Task3.Solve();
+                        break;
+                    case "4":
+                        Console.WriteLine("--- Задача 4: Лабиринт ---");
+                        // Task4.Solve();
+                        break;
+                    case "0":
+                        return;
+                    default:
+                        Console.WriteLine("Неверный ввод.");
+                        break;
+                }
+                Console.WriteLine(); // Пустая строка для читаемости
+            }
+        }
+    }
+    
+    // Сюда вы можете вставить классы Task1, Task2, Task3, Task4 из предыдущего ответа
+    // ...
+}
